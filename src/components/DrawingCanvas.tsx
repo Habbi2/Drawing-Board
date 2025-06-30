@@ -26,6 +26,7 @@ export default function DrawingCanvas() {
   const [lineWidth, setLineWidth] = useState(3)
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 800, height: 600 })
   const [userId] = useState(() => Math.random().toString(36).substr(2, 9))
+  const [isConnected, setIsConnected] = useState(false)
   
   const drawLine = useCallback((data: DrawData) => {
     const canvas = canvasRef.current
@@ -59,13 +60,25 @@ export default function DrawingCanvas() {
     })
     setSocket(newSocket)
 
+    newSocket.on('connect', () => {
+      console.log('Socket connected')
+      setIsConnected(true)
+    })
+
+    newSocket.on('disconnect', () => {
+      console.log('Socket disconnected')
+      setIsConnected(false)
+    })
+
     newSocket.on('drawing', (data: DrawData) => {
+      console.log('Received drawing data:', data)
       if (data.userId !== userId) {
         drawLine(data)
       }
     })
 
     newSocket.on('clear-canvas', () => {
+      console.log('Received clear canvas')
       clearCanvas()
     })
 
@@ -153,6 +166,7 @@ export default function DrawingCanvas() {
     drawLine(drawData)
 
     // Send to other users
+    console.log('Sending drawing data:', drawData)
     socket?.emit('drawing', drawData)
 
     // Update last position
@@ -185,6 +199,13 @@ export default function DrawingCanvas() {
 
   return (
     <div className="flex items-center justify-center w-full h-full p-5">
+      {/* Connection Status */}
+      <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold ${
+        isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+      }`}>
+        {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+      </div>
+      
       <canvas
         ref={canvasRef}
         width={canvasSize.width}
