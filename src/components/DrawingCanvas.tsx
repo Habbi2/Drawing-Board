@@ -60,56 +60,76 @@ export default function DrawingCanvas() {
         },
         body: JSON.stringify({
           action: 'drawing',
-          data: drawData
+          data: drawData,
+          userId
         })
       })
     } catch (error) {
       console.error('Failed to send drawing data:', error)
     }
   }
+
+  const sendHeartbeat = async () => {
+    try {
+      await fetch('/api/realtime', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'heartbeat',
+          userId
+        })
+      })
+    } catch (error) {
+      console.error('Failed to send heartbeat:', error)
+    }
+  }
   
-  // Initialize Server-Sent Events connection
+  // Initialize polling-based real-time updates
   useEffect(() => {
-    const eventSource = new EventSource('/api/realtime')
-    
-    eventSource.onopen = () => {
-      console.log('SSE connection opened')
-      setIsConnected(true)
-    }
+    let lastEventId = 0
+    let pollInterval: NodeJS.Timeout
+    let heartbeatInterval: NodeJS.Timeout
 
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error)
-      setIsConnected(false)
-    }
-
-    eventSource.onmessage = (event) => {
+    const pollForUpdates = async () => {
       try {
-        const message = JSON.parse(event.data)
-        
-        switch (message.type) {
-          case 'drawing':
-            // Only draw if it's from another user
-            if (message.data.userId !== userId) {
-              drawLine(message.data)
+        const response = await fetch(`/api/realtime?since=${lastEventId}`)
+        const data = await response.json()
+
+        if (data.events && data.events.length > 0) {
+          data.events.forEach((event: any) => {
+            // Handle different event types
+            if (event.color === '' && event.lineWidth === 0) {
+              // This is a clear canvas event
+              clearCanvas()
+            } else if (event.userId !== userId) {
+              // This is a drawing event from another user
+              drawLine(event)
             }
-            break
-          case 'clear-canvas':
-            clearCanvas()
-            break
-          case 'user-count':
-            console.log('Connected users:', message.count)
-            break
-          case 'drawing-enabled':
-            console.log('Drawing enabled:', message.enabled)
-            break
+          })
+          lastEventId = data.lastEventId
         }
+
+        setIsConnected(true)
       } catch (error) {
-        console.error('Failed to parse SSE message:', error)
+        console.error('Polling error:', error)
+        setIsConnected(false)
       }
     }
 
+    // Start polling every 100ms for real-time feel
+    pollInterval = setInterval(pollForUpdates, 100)
+    
+    // Send heartbeat every 5 seconds
+    heartbeatInterval = setInterval(sendHeartbeat, 5000)
+
+    // Initial poll
+    pollForUpdates()
+
     return () => {
-      eventSource.close()
+      clearInterval(pollInterval)
+      clearInterval(heartbeatInterval)
       setIsConnected(false)
     }
   }, [userId, drawLine, clearCanvas])

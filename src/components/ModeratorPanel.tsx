@@ -14,40 +14,33 @@ export default function ModeratorPanel() {
   const MODERATOR_PASSWORD = process.env.NEXT_PUBLIC_MODERATOR_PASSWORD || 'stream123'
 
   useEffect(() => {
-    // Only connect if authenticated
+    // Only poll if authenticated
     if (!isAuthenticated) return
 
-    const eventSource = new EventSource('/api/realtime')
-    
-    eventSource.onopen = () => {
-      console.log('Moderator SSE connection opened')
-      setIsConnected(true)
-    }
+    let pollInterval: NodeJS.Timeout
 
-    eventSource.onerror = (error) => {
-      console.error('Moderator SSE connection error:', error)
-      setIsConnected(false)
-    }
-
-    eventSource.onmessage = (event) => {
+    const pollForUpdates = async () => {
       try {
-        const message = JSON.parse(event.data)
-        
-        switch (message.type) {
-          case 'user-count':
-            setActiveUsers(message.count)
-            break
-          case 'drawing-enabled':
-            setIsDrawingEnabled(message.enabled)
-            break
-        }
+        const response = await fetch('/api/realtime?since=0')
+        const data = await response.json()
+
+        setActiveUsers(data.userCount || 0)
+        setIsDrawingEnabled(data.drawingEnabled)
+        setIsConnected(true)
       } catch (error) {
-        console.error('Failed to parse moderator SSE message:', error)
+        console.error('Moderator polling error:', error)
+        setIsConnected(false)
       }
     }
 
+    // Poll every 2 seconds for moderator updates
+    pollInterval = setInterval(pollForUpdates, 2000)
+    
+    // Initial poll
+    pollForUpdates()
+
     return () => {
-      eventSource.close()
+      clearInterval(pollInterval)
       setIsConnected(false)
     }
   }, [isAuthenticated])
@@ -61,7 +54,8 @@ export default function ModeratorPanel() {
         },
         body: JSON.stringify({
           action,
-          data
+          data,
+          userId: 'moderator'
         })
       })
     } catch (error) {
