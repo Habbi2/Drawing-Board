@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { io, Socket } from 'socket.io-client'
 
 interface DrawData {
   x: number
@@ -20,7 +19,6 @@ interface CanvasSize {
 
 export default function DrawingCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [socket, setSocket] = useState<Socket | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [currentColor, setCurrentColor] = useState('#000000')
   const [lineWidth, setLineWidth] = useState(3)
@@ -52,45 +50,67 @@ export default function DrawingCanvas() {
 
     ctx.clearRect(0, 0, canvas!.width, canvas!.height)
   }, [])
+
+  const sendDrawingData = async (drawData: DrawData) => {
+    try {
+      await fetch('/api/realtime', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'drawing',
+          data: drawData
+        })
+      })
+    } catch (error) {
+      console.error('Failed to send drawing data:', error)
+    }
+  }
   
-  // Initialize socket connection
+  // Initialize Server-Sent Events connection
   useEffect(() => {
-    const newSocket = io({
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true
-    })
-    setSocket(newSocket)
-
-    newSocket.on('connect', () => {
-      console.log('Socket connected with ID:', newSocket.id)
+    const eventSource = new EventSource('/api/realtime')
+    
+    eventSource.onopen = () => {
+      console.log('SSE connection opened')
       setIsConnected(true)
-    })
+    }
 
-    newSocket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error)
       setIsConnected(false)
-    })
+    }
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason)
-      setIsConnected(false)
-    })
-
-    newSocket.on('drawing', (data: DrawData) => {
-      console.log('Received drawing data:', data)
-      if (data.userId !== userId) {
-        drawLine(data)
+    eventSource.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        
+        switch (message.type) {
+          case 'drawing':
+            // Only draw if it's from another user
+            if (message.data.userId !== userId) {
+              drawLine(message.data)
+            }
+            break
+          case 'clear-canvas':
+            clearCanvas()
+            break
+          case 'user-count':
+            console.log('Connected users:', message.count)
+            break
+          case 'drawing-enabled':
+            console.log('Drawing enabled:', message.enabled)
+            break
+        }
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error)
       }
-    })
-
-    newSocket.on('clear-canvas', () => {
-      console.log('Received clear canvas')
-      clearCanvas()
-    })
+    }
 
     return () => {
-      newSocket.close()
+      eventSource.close()
+      setIsConnected(false)
     }
   }, [userId, drawLine, clearCanvas])
 
@@ -172,9 +192,9 @@ export default function DrawingCanvas() {
     // Draw locally
     drawLine(drawData)
 
-    // Send to other users
+    // Send to other users via API
     console.log('Sending drawing data:', drawData)
-    socket?.emit('drawing', drawData)
+    sendDrawingData(drawData)
 
     // Update last position
     canvas.dataset.lastX = pos.x.toString()

@@ -1,55 +1,82 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { io, Socket } from 'socket.io-client'
 
 export default function ModeratorPanel() {
-  const [socket, setSocket] = useState<Socket | null>(null)
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true)
   const [activeUsers, setActiveUsers] = useState<number>(0)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isConnected, setIsConnected] = useState(false)
 
   // Simple password - in production, use environment variables or proper auth
   const MODERATOR_PASSWORD = process.env.NEXT_PUBLIC_MODERATOR_PASSWORD || 'stream123'
 
   useEffect(() => {
-    // Only connect socket if authenticated
+    // Only connect if authenticated
     if (!isAuthenticated) return
 
-    const newSocket = io({
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true
-    })
-    setSocket(newSocket)
+    const eventSource = new EventSource('/api/realtime')
+    
+    eventSource.onopen = () => {
+      console.log('Moderator SSE connection opened')
+      setIsConnected(true)
+    }
 
-    newSocket.on('user-count', (count: number) => {
-      setActiveUsers(count)
-    })
+    eventSource.onerror = (error) => {
+      console.error('Moderator SSE connection error:', error)
+      setIsConnected(false)
+    }
 
-    newSocket.on('drawing-enabled', (enabled: boolean) => {
-      setIsDrawingEnabled(enabled)
-    })
+    eventSource.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        
+        switch (message.type) {
+          case 'user-count':
+            setActiveUsers(message.count)
+            break
+          case 'drawing-enabled':
+            setIsDrawingEnabled(message.enabled)
+            break
+        }
+      } catch (error) {
+        console.error('Failed to parse moderator SSE message:', error)
+      }
+    }
 
     return () => {
-      newSocket.close()
+      eventSource.close()
+      setIsConnected(false)
     }
   }, [isAuthenticated])
 
-  const clearCanvas = () => {
-    if (socket) {
-      socket.emit('clear-canvas')
+  const sendModeratorAction = async (action: string, data?: any) => {
+    try {
+      await fetch('/api/realtime', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          data
+        })
+      })
+    } catch (error) {
+      console.error('Failed to send moderator action:', error)
     }
+  }
+
+  const clearCanvas = () => {
+    sendModeratorAction('clear-canvas')
   }
 
   const toggleDrawing = () => {
     const newState = !isDrawingEnabled
     setIsDrawingEnabled(newState)
-    if (socket) {
-      socket.emit('toggle-drawing', newState)
-    }
+    sendModeratorAction('toggle-drawing', { enabled: newState })
   }
 
   const saveCanvas = () => {
@@ -127,8 +154,13 @@ export default function ModeratorPanel() {
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-bold text-gray-800 mb-2">Moderator Panel</h2>
-          <div className="text-sm text-gray-600">
-            Active viewers: <span className="font-semibold">{activeUsers}</span>
+          <div className="text-sm text-gray-600 space-y-1">
+            <div>Active viewers: <span className="font-semibold">{activeUsers}</span></div>
+            <div className={`text-xs font-semibold ${
+              isConnected ? 'text-green-600' : 'text-red-600'
+            }`}>
+              {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+            </div>
           </div>
         </div>
 

@@ -1,13 +1,7 @@
 {
   "functions": {
-    "src/pages/api/socket.ts": {
+    "src/pages/api/realtime.ts": {
       "maxDuration": 30
     }
-  },
-  "rewrites": [
-    {
-      "source": "/socket.io/(.*)",
-      "destination": "/api/socket"
-    }
-  ]
+  }
 }

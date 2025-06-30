@@ -62,7 +62,7 @@ This project is optimized for Vercel deployment:
 
 - **Frontend**: Next.js 15 with TypeScript
 - **Styling**: Tailwind CSS
-- **Real-time**: Socket.io
+- **Real-time**: Server-Sent Events (SSE) + HTTP API
 - **Deployment**: Vercel
 
 ## Features Breakdown
@@ -102,8 +102,8 @@ This project is optimized for Vercel deployment:
 
 The project uses:
 - Next.js App Router
-- Socket.io for real-time communication
-- HTML5 Canvas for drawing
+- Server-Sent Events for real-time communication
+- HTTP API for sending drawing data
 - Custom events for component communication
 - Responsive design principles
 
