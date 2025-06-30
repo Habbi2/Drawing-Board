@@ -41,8 +41,18 @@ export function useFirebaseDrawing() {
         }));
         // Sort by timestamp to ensure proper order
         eventsList.sort((a, b) => a.timestamp - b.timestamp);
-        setEvents(eventsList);
+        
+        // Only update if events have actually changed
+        setEvents(prevEvents => {
+          if (prevEvents.length !== eventsList.length || 
+              JSON.stringify(prevEvents) !== JSON.stringify(eventsList)) {
+            console.log(`Firebase: Loaded ${eventsList.length} drawing events`);
+            return eventsList;
+          }
+          return prevEvents;
+        });
       } else {
+        console.log('Firebase: No drawing events found, starting with clean canvas');
         setEvents([]);
       }
       setConnectionStatus(prev => ({ ...prev, isConnected: true }));

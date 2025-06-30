@@ -55,31 +55,83 @@ export default function DrawingCanvas() {
     ctx.clearRect(0, 0, canvas!.width, canvas!.height)
   }, [])
 
+  // Track processed events to avoid reprocessing
+  const [processedEventIds, setProcessedEventIds] = useState<Set<string>>(new Set())
+  const [hasInitialized, setHasInitialized] = useState(false)
+
   // Process Firebase events
   useEffect(() => {
     if (!events.length) return
 
-    // Get the latest event
-    const latestEvent = events[events.length - 1]
-    
-    if (latestEvent.type === 'clear') {
-      clearCanvas()
-    } else if (latestEvent.type === 'draw' && latestEvent.userId !== userId) {
-      // Only draw events from other users to avoid double-drawing
-      if (latestEvent.x !== undefined && latestEvent.y !== undefined && 
-          latestEvent.prevX !== undefined && latestEvent.prevY !== undefined &&
-          latestEvent.color && latestEvent.lineWidth) {
-        drawLine({
-          x: latestEvent.x,
-          y: latestEvent.y,
-          prevX: latestEvent.prevX,
-          prevY: latestEvent.prevY,
-          color: latestEvent.color,
-          lineWidth: latestEvent.lineWidth
-        })
-      }
+    // On first load, replay all events to show current state
+    if (!hasInitialized) {
+      clearCanvas() // Start with clean canvas
+      
+      // Process all events in order
+      events.forEach(event => {
+        if (event.type === 'clear') {
+          clearCanvas()
+        } else if (event.type === 'draw') {
+          // Draw all events including our own during initialization
+          if (event.x !== undefined && event.y !== undefined && 
+              event.prevX !== undefined && event.prevY !== undefined &&
+              event.color && event.lineWidth) {
+            drawLine({
+              x: event.x,
+              y: event.y,
+              prevX: event.prevX,
+              prevY: event.prevY,
+              color: event.color,
+              lineWidth: event.lineWidth
+            })
+          }
+        }
+      })
+      
+      // Mark all current events as processed
+      const eventIds = new Set(events.map(e => e.id).filter(Boolean) as string[])
+      setProcessedEventIds(eventIds)
+      setHasInitialized(true)
+      return
     }
-  }, [events, userId, drawLine, clearCanvas])
+
+    // Process only new events after initialization
+    events.forEach(event => {
+      if (!event.id || processedEventIds.has(event.id)) return
+
+      if (event.type === 'clear') {
+        clearCanvas()
+        // Clear processed events since canvas is now empty
+        setProcessedEventIds(new Set([event.id]))
+      } else if (event.type === 'draw' && event.userId !== userId) {
+        // Only draw events from other users to avoid double-drawing
+        if (event.x !== undefined && event.y !== undefined && 
+            event.prevX !== undefined && event.prevY !== undefined &&
+            event.color && event.lineWidth) {
+          drawLine({
+            x: event.x,
+            y: event.y,
+            prevX: event.prevX,
+            prevY: event.prevY,
+            color: event.color,
+            lineWidth: event.lineWidth
+          })
+        }
+      }
+      
+      // Mark event as processed
+      if (event.id) {
+        setProcessedEventIds(prev => new Set([...prev, event.id!]))
+      }
+    })
+  }, [events, userId, drawLine, clearCanvas, processedEventIds, hasInitialized])
+
+  // Debug connection status
+  useEffect(() => {
+    console.log('Firebase connection status:', connectionStatus)
+    console.log('Total events loaded:', events.length)
+    console.log('Has initialized:', hasInitialized)
+  }, [connectionStatus, events.length, hasInitialized])
 
   // Handle canvas resize
   useEffect(() => {
@@ -210,6 +262,13 @@ export default function DrawingCanvas() {
           👥 {connectionStatus.activeUsers} user{connectionStatus.activeUsers !== 1 ? 's' : ''}
         </span>
       </div>
+
+      {/* Loading indicator */}
+      {!hasInitialized && connectionStatus.isConnected && (
+        <div className="absolute top-2 right-2 px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+          📥 Loading drawing...
+        </div>
+      )}
       
       <canvas
         ref={canvasRef}

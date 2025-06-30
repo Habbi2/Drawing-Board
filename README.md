@@ -158,3 +158,30 @@ The project uses:
 ## License
 
 This project is open source and available under the MIT License.
+
+## Key Features Explained
+
+### Real-time Drawing Synchronization
+
+The drawing board uses Firebase Realtime Database to ensure all users see the same canvas state:
+
+- **New User Experience**: When someone joins, they automatically see the complete current drawing by replaying all drawing events in chronological order
+- **Real-time Updates**: All drawing strokes are immediately synchronized across all connected users
+- **Persistent State**: Drawings persist even when users disconnect and reconnect
+- **Event History**: The system maintains a complete history of all drawing events for perfect synchronization
+
+### Drawing History Replay
+
+The application intelligently handles drawing state for new users:
+
+1. **Initial Load**: New users see a "Loading drawing..." indicator while the canvas replays all existing drawing events
+2. **Event Processing**: All historical drawing events are processed in the correct chronological order
+3. **Incremental Updates**: After initialization, only new events are processed to maintain performance
+4. **Clear Events**: When a moderator clears the canvas, the history is reset and all users see a clean canvas
+
+### Performance Optimizations
+
+- **Event Deduplication**: Prevents processing the same drawing events multiple times
+- **Efficient Canvas Updates**: Only draws new strokes to avoid unnecessary redraws
+- **Connection Status**: Real-time feedback on connection quality and active user count
+- **Smart Initialization**: Replays drawing history only once when a user first connects
