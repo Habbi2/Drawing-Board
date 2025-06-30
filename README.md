@@ -6,12 +6,30 @@ A real-time collaborative drawing board designed for streaming platforms. Viewer
 
 - **Real-time Collaboration**: Multiple viewers can draw simultaneously
 - **OBS Integration**: Seamless overlay integration for streaming
-- **Moderator Controls**: Clear canvas, toggle drawing permissions, save artwork
+- **Moderator Controls**: Clear canvas, save artwork, user tracking
 - **Mobile Responsive**: Works on both desktop and mobile devices
 - **No Eraser for Viewers**: Prevents accidental or malicious clearing
 - **Transparent Background**: Perfect for OBS overlays
+- **Firebase Backend**: Robust real-time synchronization
 
 ## Getting Started
+
+### Prerequisites
+
+1. **Firebase Project Setup**:
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Create a new project or use an existing one
+   - Enable **Realtime Database**
+   - Set database rules to allow read/write access:
+   ```json
+   {
+     "rules": {
+       ".read": true,
+       ".write": true
+     }
+   }
+   ```
+   - Get your Firebase config from Project Settings > General > Web Apps
 
 ### Development
 
@@ -20,20 +38,34 @@ A real-time collaborative drawing board designed for streaming platforms. Viewer
 npm install
 ```
 
-2. Run the development server:
+2. Create `.env.local` file with your Firebase configuration:
+```bash
+# Copy from env.example and fill in your Firebase project details
+NEXT_PUBLIC_MODERATOR_PASSWORD=your_secure_password
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://your_project-default-rtdb.firebaseio.com/
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
+
+3. Run the development server:
 ```bash
 npm run dev
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-### Deployment
-
-This project is optimized for Vercel deployment:
+### Deployment to Vercel
 
 1. Push your code to GitHub
 2. Connect your repository to Vercel
-3. Deploy with default settings
+3. Add environment variables in Vercel dashboard:
+   - All Firebase configuration variables
+   - `NEXT_PUBLIC_MODERATOR_PASSWORD`
+4. Deploy with default settings
 
 ## Usage
 
@@ -41,8 +73,7 @@ This project is optimized for Vercel deployment:
 
 1. **OBS Setup**: Add a Browser Source with the URL: `https://your-domain.vercel.app?obs=true`
 2. **Moderator Panel**: Access moderation controls at: `https://your-domain.vercel.app?mod=true`
-   - **Default password**: `stream123` (change this in production!)
-   - Set custom password using `NEXT_PUBLIC_MODERATOR_PASSWORD` environment variable
+   - Use your configured moderator password
 3. **Share with Viewers**: Give viewers the main URL: `https://your-domain.vercel.app`
 
 ### For Viewers
@@ -62,7 +93,7 @@ This project is optimized for Vercel deployment:
 
 - **Frontend**: Next.js 15 with TypeScript
 - **Styling**: Tailwind CSS
-- **Real-time**: Server-Sent Events (SSE) + HTTP API
+- **Real-time**: Firebase Realtime Database
 - **Deployment**: Vercel
 
 ## Features Breakdown
@@ -74,38 +105,47 @@ This project is optimized for Vercel deployment:
 
 ### Moderation
 - Clear canvas button
-- Toggle drawing permissions
 - Save canvas as PNG
 - Real-time user count
-- Drawing enable/disable status
+- Connection status monitoring
 
 ### OBS Integration
 - Transparent background support
 - Configurable canvas dimensions
 - Minimal UI for overlay mode
-- Low-latency updates
+- Low-latency updates via Firebase
 
 ## Security
 
 ### Moderator Authentication
 - The moderator panel requires a password to prevent unauthorized access
-- **Default password**: `stream123` (for development only)
-- **Production**: Set `NEXT_PUBLIC_MODERATOR_PASSWORD` environment variable in Vercel
+- Set `NEXT_PUBLIC_MODERATOR_PASSWORD` environment variable
 
-### Setting Custom Password
+### Firebase Security
+- Configure Firebase Database Rules according to your needs
+- For production, consider implementing Firebase Authentication
+- Current setup allows public read/write for simplicity
+
+### Setting Environment Variables
+
+#### Local Development
+Create `.env.local` file with all required variables from `env.example`.
+
+#### Production (Vercel)
 1. In Vercel dashboard, go to your project
 2. Navigate to Settings > Environment Variables
-3. Add: `NEXT_PUBLIC_MODERATOR_PASSWORD` with your secure password
-4. Redeploy the application
+3. Add all Firebase configuration variables
+4. Add `NEXT_PUBLIC_MODERATOR_PASSWORD`
+5. Redeploy the application
 
 ## Development Notes
 
 The project uses:
 - Next.js App Router
-- Server-Sent Events for real-time communication
-- HTTP API for sending drawing data
-- Custom events for component communication
+- Firebase Realtime Database for real-time sync
+- Custom React hooks for Firebase integration
 - Responsive design principles
+- TypeScript for type safety
 
 ## Contributing
 

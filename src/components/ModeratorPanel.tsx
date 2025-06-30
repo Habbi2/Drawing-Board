@@ -1,76 +1,33 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useFirebaseDrawing, generateUserId } from '../lib/useFirebaseDrawing'
 
 export default function ModeratorPanel() {
-  const [isDrawingEnabled, setIsDrawingEnabled] = useState(true)
-  const [activeUsers, setActiveUsers] = useState<number>(0)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [isConnected, setIsConnected] = useState(false)
+  const [userId] = useState(() => generateUserId())
+
+  const {
+    connectionStatus,
+    clearDrawing,
+    registerUser
+  } = useFirebaseDrawing()
 
   // Simple password - in production, use environment variables or proper auth
   const MODERATOR_PASSWORD = process.env.NEXT_PUBLIC_MODERATOR_PASSWORD || 'stream123'
 
+  // Register moderator as active user when authenticated
   useEffect(() => {
-    // Only poll if authenticated
     if (!isAuthenticated) return
-
-    let pollInterval: NodeJS.Timeout
-
-    const pollForUpdates = async () => {
-      try {
-        const response = await fetch('/api/realtime?since=0')
-        const data = await response.json()
-
-        setActiveUsers(data.userCount || 0)
-        setIsDrawingEnabled(data.drawingEnabled)
-        setIsConnected(true)
-      } catch (error) {
-        console.error('Moderator polling error:', error)
-        setIsConnected(false)
-      }
-    }
-
-    // Poll every 2 seconds for moderator updates
-    pollInterval = setInterval(pollForUpdates, 2000)
     
-    // Initial poll
-    pollForUpdates()
-
-    return () => {
-      clearInterval(pollInterval)
-      setIsConnected(false)
-    }
-  }, [isAuthenticated])
-
-  const sendModeratorAction = async (action: string, data?: any) => {
-    try {
-      await fetch('/api/realtime', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action,
-          data,
-          userId: 'moderator'
-        })
-      })
-    } catch (error) {
-      console.error('Failed to send moderator action:', error)
-    }
-  }
+    const cleanup = registerUser(`moderator_${userId}`)
+    return cleanup
+  }, [isAuthenticated, userId, registerUser])
 
   const clearCanvas = () => {
-    sendModeratorAction('clear-canvas')
-  }
-
-  const toggleDrawing = () => {
-    const newState = !isDrawingEnabled
-    setIsDrawingEnabled(newState)
-    sendModeratorAction('toggle-drawing', { enabled: newState })
+    clearDrawing(`moderator_${userId}`)
   }
 
   const saveCanvas = () => {
@@ -149,11 +106,11 @@ export default function ModeratorPanel() {
         <div>
           <h2 className="text-lg font-bold text-gray-800 mb-2">Moderator Panel</h2>
           <div className="text-sm text-gray-600 space-y-1">
-            <div>Active viewers: <span className="font-semibold">{activeUsers}</span></div>
+            <div>Active users: <span className="font-semibold">{connectionStatus.activeUsers}</span></div>
             <div className={`text-xs font-semibold ${
-              isConnected ? 'text-green-600' : 'text-red-600'
+              connectionStatus.isConnected ? 'text-green-600' : 'text-red-600'
             }`}>
-              {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+              {connectionStatus.isConnected ? '🟢 Connected to Firebase' : '🔴 Disconnected'}
             </div>
           </div>
         </div>
@@ -164,17 +121,6 @@ export default function ModeratorPanel() {
             className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium"
           >
             Clear Canvas
-          </button>
-
-          <button
-            onClick={toggleDrawing}
-            className={`w-full px-4 py-2 rounded font-medium transition-colors ${
-              isDrawingEnabled
-                ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
-          >
-            {isDrawingEnabled ? 'Disable Drawing' : 'Enable Drawing'}
           </button>
 
           <button
@@ -199,10 +145,10 @@ export default function ModeratorPanel() {
               • Use Clear Canvas to remove inappropriate content
             </div>
             <div className="text-gray-600">
-              • Toggle drawing to pause viewer interaction
+              • Save memorable artwork for later
             </div>
             <div className="text-gray-600">
-              • Save memorable artwork for later
+              • Real-time sync via Firebase Realtime Database
             </div>
           </div>
         </div>

@@ -1,16 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-
-interface DrawData {
-  x: number
-  y: number
-  prevX: number
-  prevY: number
-  color: string
-  lineWidth: number
-  userId: string
-}
+import { useFirebaseDrawing, generateUserId, DrawingEvent } from '../lib/useFirebaseDrawing'
 
 interface CanvasSize {
   width: number
@@ -23,10 +14,23 @@ export default function DrawingCanvas() {
   const [currentColor, setCurrentColor] = useState('#000000')
   const [lineWidth, setLineWidth] = useState(3)
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 800, height: 600 })
-  const [userId] = useState(() => Math.random().toString(36).substr(2, 9))
-  const [isConnected, setIsConnected] = useState(false)
+  const [userId] = useState(() => generateUserId())
   
-  const drawLine = useCallback((data: DrawData) => {
+  const {
+    events,
+    connectionStatus,
+    addDrawingEvent,
+    clearDrawing,
+    registerUser
+  } = useFirebaseDrawing()
+
+  // Register user when component mounts
+  useEffect(() => {
+    const cleanup = registerUser(userId)
+    return cleanup
+  }, [userId, registerUser])
+  
+  const drawLine = useCallback((data: { x: number, y: number, prevX: number, prevY: number, color: string, lineWidth: number }) => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!ctx) return
@@ -51,88 +55,31 @@ export default function DrawingCanvas() {
     ctx.clearRect(0, 0, canvas!.width, canvas!.height)
   }, [])
 
-  const sendDrawingData = async (drawData: DrawData) => {
-    try {
-      await fetch('/api/realtime', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'drawing',
-          data: drawData,
-          userId
-        })
-      })
-    } catch (error) {
-      console.error('Failed to send drawing data:', error)
-    }
-  }
-
-  const sendHeartbeat = async () => {
-    try {
-      await fetch('/api/realtime', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'heartbeat',
-          userId
-        })
-      })
-    } catch (error) {
-      console.error('Failed to send heartbeat:', error)
-    }
-  }
-  
-  // Initialize polling-based real-time updates
+  // Process Firebase events
   useEffect(() => {
-    let lastEventId = 0
-    let pollInterval: NodeJS.Timeout
-    let heartbeatInterval: NodeJS.Timeout
+    if (!events.length) return
 
-    const pollForUpdates = async () => {
-      try {
-        const response = await fetch(`/api/realtime?since=${lastEventId}`)
-        const data = await response.json()
-
-        if (data.events && data.events.length > 0) {
-          data.events.forEach((event: any) => {
-            // Handle different event types
-            if (event.color === '' && event.lineWidth === 0) {
-              // This is a clear canvas event
-              clearCanvas()
-            } else if (event.userId !== userId) {
-              // This is a drawing event from another user
-              drawLine(event)
-            }
-          })
-          lastEventId = data.lastEventId
-        }
-
-        setIsConnected(true)
-      } catch (error) {
-        console.error('Polling error:', error)
-        setIsConnected(false)
+    // Get the latest event
+    const latestEvent = events[events.length - 1]
+    
+    if (latestEvent.type === 'clear') {
+      clearCanvas()
+    } else if (latestEvent.type === 'draw' && latestEvent.userId !== userId) {
+      // Only draw events from other users to avoid double-drawing
+      if (latestEvent.x !== undefined && latestEvent.y !== undefined && 
+          latestEvent.prevX !== undefined && latestEvent.prevY !== undefined &&
+          latestEvent.color && latestEvent.lineWidth) {
+        drawLine({
+          x: latestEvent.x,
+          y: latestEvent.y,
+          prevX: latestEvent.prevX,
+          prevY: latestEvent.prevY,
+          color: latestEvent.color,
+          lineWidth: latestEvent.lineWidth
+        })
       }
     }
-
-    // Start polling every 100ms for real-time feel
-    pollInterval = setInterval(pollForUpdates, 100)
-    
-    // Send heartbeat every 5 seconds
-    heartbeatInterval = setInterval(sendHeartbeat, 5000)
-
-    // Initial poll
-    pollForUpdates()
-
-    return () => {
-      clearInterval(pollInterval)
-      clearInterval(heartbeatInterval)
-      setIsConnected(false)
-    }
-  }, [userId, drawLine, clearCanvas])
+  }, [events, userId, drawLine, clearCanvas])
 
   // Handle canvas resize
   useEffect(() => {
@@ -199,22 +146,24 @@ export default function DrawingCanvas() {
     const prevX = parseFloat(canvas.dataset.lastX || '0')
     const prevY = parseFloat(canvas.dataset.lastY || '0')
 
-    const drawData: DrawData = {
+    const drawData = {
       x: pos.x,
       y: pos.y,
       prevX,
       prevY,
       color: currentColor,
       lineWidth,
-      userId
     }
 
-    // Draw locally
+    // Draw locally first for immediate feedback
     drawLine(drawData)
 
-    // Send to other users via API
-    console.log('Sending drawing data:', drawData)
-    sendDrawingData(drawData)
+    // Send to Firebase for other users
+    addDrawingEvent({
+      type: 'draw',
+      ...drawData,
+      userId
+    })
 
     // Update last position
     canvas.dataset.lastX = pos.x.toString()
@@ -235,22 +184,31 @@ export default function DrawingCanvas() {
       setLineWidth(e.detail.lineWidth)
     }
 
+    const handleClearCanvas = () => {
+      clearDrawing(userId)
+    }
+
     window.addEventListener('canvas-color-change', handleColorChange as EventListener)
     window.addEventListener('canvas-linewidth-change', handleLineWidthChange as EventListener)
+    window.addEventListener('canvas-clear', handleClearCanvas)
 
     return () => {
       window.removeEventListener('canvas-color-change', handleColorChange as EventListener)
       window.removeEventListener('canvas-linewidth-change', handleLineWidthChange as EventListener)
+      window.removeEventListener('canvas-clear', handleClearCanvas)
     }
-  }, [])
+  }, [userId, clearDrawing])
 
   return (
     <div className="flex items-center justify-center w-full h-full p-5">
       {/* Connection Status */}
       <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold ${
-        isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        connectionStatus.isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
       }`}>
-        {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+        {connectionStatus.isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+        <span className="ml-2">
+          👥 {connectionStatus.activeUsers} user{connectionStatus.activeUsers !== 1 ? 's' : ''}
+        </span>
       </div>
       
       <canvas
