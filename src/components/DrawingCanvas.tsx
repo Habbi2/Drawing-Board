@@ -54,7 +54,9 @@ export default function DrawingCanvas() {
   
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io()
+    const newSocket = io({
+      path: '/api/socket'
+    })
     setSocket(newSocket)
 
     newSocket.on('drawing', (data: DrawData) => {
@@ -108,7 +110,10 @@ export default function DrawingCanvas() {
   }
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
+    // Only preventDefault for mouse events, not touch events
+    if ('button' in e) {
+      e.preventDefault()
+    }
     const pos = getCanvasPosition(e)
     setIsDrawing(true)
     
@@ -121,7 +126,10 @@ export default function DrawingCanvas() {
   }
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
+    // Only preventDefault for mouse events, not touch events
+    if ('button' in e) {
+      e.preventDefault()
+    }
     if (!isDrawing) return
 
     const canvas = canvasRef.current
@@ -189,7 +197,7 @@ export default function DrawingCanvas() {
         onTouchStart={startDrawing}
         onTouchMove={draw}
         onTouchEnd={stopDrawing}
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'manipulation' }}
       />
     </div>
   )

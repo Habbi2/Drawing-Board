@@ -7,9 +7,20 @@ export default function ModeratorPanel() {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true)
   const [activeUsers, setActiveUsers] = useState<number>(0)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  // Simple password - in production, use environment variables or proper auth
+  const MODERATOR_PASSWORD = process.env.NEXT_PUBLIC_MODERATOR_PASSWORD || 'stream123'
 
   useEffect(() => {
-    const newSocket = io()
+    // Only connect socket if authenticated
+    if (!isAuthenticated) return
+
+    const newSocket = io({
+      path: '/api/socket'
+    })
     setSocket(newSocket)
 
     newSocket.on('user-count', (count: number) => {
@@ -23,7 +34,7 @@ export default function ModeratorPanel() {
     return () => {
       newSocket.close()
     }
-  }, [])
+  }, [isAuthenticated])
 
   const clearCanvas = () => {
     if (socket) {
@@ -48,6 +59,65 @@ export default function ModeratorPanel() {
       link.href = canvas.toDataURL()
       link.click()
     }
+  }
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (password === MODERATOR_PASSWORD) {
+      setIsAuthenticated(true)
+      setError('')
+    } else {
+      setError('Invalid password')
+      setPassword('')
+    }
+  }
+
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg border min-w-64">
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Moderator Login</h2>
+            <p className="text-sm text-gray-600">Enter password to access moderator controls</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-3">
+            <div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter moderator password"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+            
+            {error && (
+              <div className="text-sm text-red-600">{error}</div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium"
+            >
+              Login
+            </button>
+          </form>
+
+          <div className="border-t pt-3">
+            <div className="text-xs text-gray-600">
+              <strong>Default password:</strong> {process.env.NEXT_PUBLIC_MODERATOR_PASSWORD ? '[Environment Variable]' : 'stream123'}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {!process.env.NEXT_PUBLIC_MODERATOR_PASSWORD && 'Change this in production!'}
+              {process.env.NEXT_PUBLIC_MODERATOR_PASSWORD && 'Using custom password from environment'}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -84,6 +154,13 @@ export default function ModeratorPanel() {
             className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium"
           >
             Save Canvas
+          </button>
+
+          <button
+            onClick={() => setIsAuthenticated(false)}
+            className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors font-medium"
+          >
+            Logout
           </button>
         </div>
 

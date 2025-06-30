@@ -41,6 +41,8 @@ This project is optimized for Vercel deployment:
 
 1. **OBS Setup**: Add a Browser Source with the URL: `https://your-domain.vercel.app?obs=true`
 2. **Moderator Panel**: Access moderation controls at: `https://your-domain.vercel.app?mod=true`
+   - **Default password**: `stream123` (change this in production!)
+   - Set custom password using `NEXT_PUBLIC_MODERATOR_PASSWORD` environment variable
 3. **Share with Viewers**: Give viewers the main URL: `https://your-domain.vercel.app`
 
 ### For Viewers
@@ -82,6 +84,19 @@ This project is optimized for Vercel deployment:
 - Configurable canvas dimensions
 - Minimal UI for overlay mode
 - Low-latency updates
+
+## Security
+
+### Moderator Authentication
+- The moderator panel requires a password to prevent unauthorized access
+- **Default password**: `stream123` (for development only)
+- **Production**: Set `NEXT_PUBLIC_MODERATOR_PASSWORD` environment variable in Vercel
+
+### Setting Custom Password
+1. In Vercel dashboard, go to your project
+2. Navigate to Settings > Environment Variables
+3. Add: `NEXT_PUBLIC_MODERATOR_PASSWORD` with your secure password
+4. Redeploy the application
 
 ## Development Notes
 
