@@ -37,12 +37,14 @@ const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
 
   console.log('Socket is initializing')
   const io = new Server(res.socket.server, {
-    path: '/api/socket',
     addTrailingSlash: false,
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
-    }
+      methods: ["GET", "POST"],
+      credentials: false
+    },
+    allowEIO3: true,
+    transports: ['websocket', 'polling']
   })
   res.socket.server.io = io
 

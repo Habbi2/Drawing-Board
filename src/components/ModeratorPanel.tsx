@@ -19,7 +19,9 @@ export default function ModeratorPanel() {
     if (!isAuthenticated) return
 
     const newSocket = io({
-      path: '/api/socket'
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+      rememberUpgrade: true
     })
     setSocket(newSocket)
 

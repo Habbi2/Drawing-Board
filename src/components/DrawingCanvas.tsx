@@ -56,17 +56,24 @@ export default function DrawingCanvas() {
   // Initialize socket connection
   useEffect(() => {
     const newSocket = io({
-      path: '/api/socket'
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+      rememberUpgrade: true
     })
     setSocket(newSocket)
 
     newSocket.on('connect', () => {
-      console.log('Socket connected')
+      console.log('Socket connected with ID:', newSocket.id)
       setIsConnected(true)
     })
 
-    newSocket.on('disconnect', () => {
-      console.log('Socket disconnected')
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error)
+      setIsConnected(false)
+    })
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason)
       setIsConnected(false)
     })
 
